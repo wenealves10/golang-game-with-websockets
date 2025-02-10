@@ -21,7 +21,11 @@ Criar um jogo multiplayer simples e eficiente, onde os jogadores possam interagi
    go mod tidy
    ```
 3. Inicie o Game Server:
-   ```sh go run server/main.go```
+   ```sh 
+   go run server/main.go
+   ```
 4. Inicie o Game Client:
-   ```sh go run client/main.go```
+   ```sh 
+   go run client/main.go
+   ```
 
