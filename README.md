@@ -13,6 +13,6 @@ Criar um jogo multiplayer simples e eficiente, onde os jogadores possam interagi
 ## 🛠️ Como Rodar o Projeto  
 1. Clone o repositório:  
    ```sh
-   git clone https://github.com/seu-usuario/golang-game-with-websockets.git
+   git clone https://github.com/wenealves10/golang-game-with-websockets.git
    cd golang-game-with-websockets
    ```
