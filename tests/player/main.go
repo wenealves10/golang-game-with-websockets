@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"image"
+	"image/color"
 	_ "image/png"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const (
@@ -22,11 +25,18 @@ const (
 
 	gravity     = 800.0
 	jumpImpulse = -250.0
+	tileSize    = 16
 )
 
 var (
-	runnerImage *ebiten.Image
+	playerImage *ebiten.Image
+	tilesImage  *ebiten.Image
 )
+
+func init() {
+	playerImage = loadImage(images.Runner_png)
+	tilesImage = loadImage(images.Tiles_png)
+}
 
 type Player struct {
 	X     float64
@@ -39,6 +49,7 @@ type Player struct {
 type Game struct {
 	Player  Player
 	counter int
+	layers  [][]int
 }
 
 func (g *Game) Update() error {
@@ -65,7 +76,7 @@ func (g *Game) controlPlayer() {
 	}
 
 	const dt = 1.0 / 60.0
-	const groundY = screenHeight - frameHeight/2
+	const groundY = screenHeight - (frameHeight / 2) - tileSize
 
 	if ebiten.IsKeyPressed(ebiten.KeySpace) && g.Player.Y >= groundY {
 		g.Player.Vy = jumpImpulse
@@ -110,7 +121,7 @@ func (g *Game) drawPlayer(screen *ebiten.Image, p *Player) {
 		sx, sy = g.animateRestingPlayer()
 	}
 
-	subImg := runnerImage.SubImage(image.Rect(sx, sy, sx+frameWidth, sy+frameHeight)).(*ebiten.Image)
+	subImg := playerImage.SubImage(image.Rect(sx, sy, sx+frameWidth, sy+frameHeight)).(*ebiten.Image)
 
 	op := &ebiten.DrawImageOptions{}
 
@@ -129,6 +140,21 @@ func (g *Game) drawPlayer(screen *ebiten.Image, p *Player) {
 	screen.DrawImage(subImg, op)
 }
 
+func (g *Game) renderGround(screen *ebiten.Image) {
+	w := tilesImage.Bounds().Dx()
+	tileXCount := w / tileSize
+	const xCount = screenWidth / tileSize
+	for _, l := range g.layers {
+		for i, t := range l {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64((i%xCount)*tileSize), float64((i/xCount)*tileSize))
+			sx := (t % tileXCount) * tileSize
+			sy := (t / tileXCount) * tileSize
+			screen.DrawImage(tilesImage.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+		}
+	}
+}
+
 func (g *Game) animateRestingPlayer() (int, int) {
 	i := (g.counter / 5) % 5
 	return frameOX + i*frameWidth, 0
@@ -145,7 +171,16 @@ func (g *Game) animateJumpingPlayer() (int, int) {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	skyColor := color.RGBA{R: 30, G: 30, B: 80, A: 255}
+	screen.Fill(skyColor)
+	g.renderGround(screen)
 	g.drawPlayer(screen, &g.Player)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), 0, 0)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("FPS: %0.2f", ebiten.CurrentFPS()), 0, 20)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("X: %0.2f", g.Player.X), 0, 40)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Y: %0.2f", g.Player.Y), 0, 60)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Vy: %0.2f", g.Player.Vy), 0, 80)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("State: %s", g.Player.State), 0, 100)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -154,14 +189,15 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 
-	runnerImage = loadImage(images.Runner_png)
-
 	game := &Game{
 		Player: Player{
 			X:     screenWidth / 2,
-			Y:     screenHeight - frameHeight/2,
+			Y:     screenHeight - (frameHeight / 2) - tileSize,
 			Flip:  false,
 			State: "idle",
+		},
+		layers: [][]int{
+			generateGroundLayer(),
 		},
 	}
 
@@ -178,4 +214,15 @@ func loadImage(imageBytes []byte) *ebiten.Image {
 		log.Fatal(err)
 	}
 	return ebiten.NewImageFromImage(img)
+}
+
+func generateGroundLayer() []int {
+	tileIndex := 247
+	xCount := screenWidth / tileSize
+	yCount := screenHeight / tileSize
+	layer := make([]int, xCount*yCount)
+	for i := (yCount - 2) * xCount; i < len(layer); i++ {
+		layer[i] = tileIndex
+	}
+	return layer
 }
