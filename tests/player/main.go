@@ -11,6 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const (
@@ -67,6 +68,7 @@ type Game struct {
 	Enemys  []*Enemy
 	counter int
 	layers  [][]int
+	cam     *Camera
 }
 
 func (g *Game) Update() error {
@@ -74,6 +76,13 @@ func (g *Game) Update() error {
 	g.controlPlayer()
 	g.checkCollision()
 	g.controlEnemy()
+	g.cam.FollowTarget(g.Player.X+8, g.Player.Y, screenWidth, screenHeight)
+	g.cam.Constrain(
+		float64((screenWidth+screenWidth)/tileSize)*tileSize,
+		float64(screenHeight/tileSize)*tileSize,
+		float64(screenWidth),
+		float64(screenHeight),
+	)
 	return nil
 }
 
@@ -112,7 +121,7 @@ func (g *Game) controlPlayer() {
 	const dt = 1.0 / 60.0
 	const groundY = screenHeight - (frameHeight / 2) - tileSize
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && g.Player.Y >= groundY {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.Player.Y >= groundY {
 		g.Player.Vy = jumpImpulse
 		g.Player.State = "jumping"
 	}
@@ -134,12 +143,7 @@ func (g *Game) controlPlayer() {
 }
 
 func (g *Game) checkCollision() {
-	if g.Player.X < frameWidth/4 {
-		g.Player.X = frameWidth / 4
-	}
-	if g.Player.X > screenWidth-frameWidth/4 {
-		g.Player.X = screenWidth - frameWidth/4
-	}
+
 }
 
 func (g *Game) drawPlayer(screen *ebiten.Image, p *Player) {
@@ -170,8 +174,10 @@ func (g *Game) drawPlayer(screen *ebiten.Image, p *Player) {
 	}
 
 	op.GeoM.Translate(p.X, p.Y)
+	op.GeoM.Translate(g.cam.X, g.cam.Y)
 
 	screen.DrawImage(subImg, op)
+	op.GeoM.Reset()
 }
 
 func (g *Game) drawEnemy(screen *ebiten.Image, e *Enemy) {
@@ -203,6 +209,7 @@ func (g *Game) drawEnemy(screen *ebiten.Image, e *Enemy) {
 	}
 
 	op.GeoM.Translate(e.X, e.Y)
+	op.GeoM.Translate(g.cam.X, g.cam.Y)
 
 	screen.DrawImage(subImg, op)
 }
@@ -220,14 +227,16 @@ func (g *Game) animateMushroomEnemyRun() (int, int) {
 func (g *Game) renderGround(screen *ebiten.Image) {
 	w := tilesImage.Bounds().Dx()
 	tileXCount := w / tileSize
-	const xCount = screenWidth / tileSize
+	const xCount = (screenWidth + screenWidth) / tileSize
 	for _, l := range g.layers {
 		for i, t := range l {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64((i%xCount)*tileSize), float64((i/xCount)*tileSize))
+			op.GeoM.Translate(g.cam.X, g.cam.Y)
 			sx := (t % tileXCount) * tileSize
 			sy := (t / tileXCount) * tileSize
 			screen.DrawImage(tilesImage.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+			op.GeoM.Reset()
 		}
 	}
 }
@@ -289,6 +298,7 @@ func main() {
 		layers: [][]int{
 			generateGroundLayer(),
 		},
+		cam: NewCamera(0.0, 0.0),
 	}
 
 	ebiten.SetWindowSize(screenWidth*2, screenHeight*2)
@@ -316,10 +326,10 @@ func loadImage(path string) *ebiten.Image {
 
 func generateGroundLayer() []int {
 	tileIndex := 247
-	xCount := screenWidth / tileSize
+	xCount := (screenWidth + screenWidth) / tileSize
 	yCount := screenHeight / tileSize
 	layer := make([]int, xCount*yCount)
-	for i := (yCount - 2) * xCount; i < len(layer); i++ {
+	for i := (yCount - 1) * xCount; i < len(layer); i++ {
 		layer[i] = tileIndex
 	}
 	return layer
